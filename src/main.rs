@@ -1,7 +1,9 @@
 #![no_std]
 #![no_main]
 
-use cortex_m::{asm, interrupt};
+use core::fmt::Write;
+
+use cortex_m::interrupt;
 // pick a panicking behavior
 use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch panics
                      // use panic_abort as _; // requires nightly
@@ -9,7 +11,7 @@ use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch
                      // use panic_semihosting as _; // logs messages to the host stderr; requires a debugger
 
 use cortex_m_rt::entry;
-use shitty_dev_board_bringup::Leds;
+use shitty_dev_board_bringup::{Leds, Usart};
 use stm32f0xx_hal::{pac, prelude::*, rcc::HSEBypassMode, timers};
 
 #[entry]
@@ -22,7 +24,17 @@ fn main() -> ! {
         .hse(16.mhz(), HSEBypassMode::NotBypassed)
         .freeze(&mut peripherals.FLASH);
 
+    let gpioa = peripherals.GPIOA.split(&mut rcc);
     let gpiob = peripherals.GPIOB.split(&mut rcc);
+
+    // Initialise serial port
+    let (pa9, pa10) = interrupt::free(|cs| {
+        (
+            gpioa.pa9.into_alternate_af1(cs),
+            gpioa.pa10.into_alternate_af1(cs),
+        )
+    });
+    let mut usart = Usart::new(peripherals.USART1, pa9, pa10, 9600.bps(), &mut rcc);
 
     // Initialise and start the timer
     let mut timer = timers::Timer::tim1(peripherals.TIM1, 1.hz(), &mut rcc);
@@ -40,6 +52,7 @@ fn main() -> ! {
     loop {
         // Flash LED
         if timer.wait().is_ok() {
+            usart.write_str("toggling\n");
             leds.toggle_all();
         }
     }
