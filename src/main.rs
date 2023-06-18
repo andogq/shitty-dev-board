@@ -4,15 +4,17 @@
 use core::fmt::Write;
 
 use cortex_m::interrupt;
-// pick a panicking behavior
-use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch panics
-                     // use panic_abort as _; // requires nightly
-                     // use panic_itm as _; // logs messages over ITM; requires ITM support
-                     // use panic_semihosting as _; // logs messages to the host stderr; requires a debugger
-
 use cortex_m_rt::entry;
-use shitty_dev_board_bringup::{Leds, Usart};
-use stm32f0xx_hal::{pac, prelude::*, rcc::HSEBypassMode, timers};
+use panic_halt as _;
+use shitty_dev_board_bringup::{
+    hal::{pac, prelude::*, rcc::HSEBypassMode, timers},
+    Leds, Usart,
+};
+
+enum Mode {
+    Toggle,
+    Index(usize),
+}
 
 #[entry]
 fn main() -> ! {
@@ -49,11 +51,32 @@ fn main() -> ! {
         )
     });
 
+    let mut mode = Mode::Toggle;
+
     loop {
-        // Flash LED
-        if timer.wait().is_ok() {
-            usart.write_str("toggling\n");
-            leds.toggle_all();
+        // Receive a command from USART
+        if let Ok(command) = usart.read() {
+            match command {
+                b't' => mode = Mode::Toggle,
+                b'0'..=b'3' => mode = Mode::Index((command - b'0') as usize),
+                _ => (),
+            }
+
+            leds.all_low();
+        }
+
+        match mode {
+            Mode::Toggle => {
+                // Flash LED
+                if timer.wait().is_ok() {
+                    usart.write_str("toggling\n").ok();
+                    leds.toggle_all();
+                }
+            }
+            Mode::Index(i) => {
+                leds.all_low();
+                leds[i].set_high().ok();
+            }
         }
     }
 }

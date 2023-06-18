@@ -1,7 +1,7 @@
 #![no_std]
 pub extern crate stm32f0xx_hal as hal;
 
-use core::ops::{Deref, DerefMut};
+use core::ops::{Deref, DerefMut, Index, IndexMut};
 
 use hal::{
     gpio::{
@@ -68,6 +68,19 @@ impl Deref for Leds {
 impl DerefMut for Leds {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.leds
+    }
+}
+
+impl Index<usize> for Leds {
+    type Output = Led;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.leds[index]
+    }
+}
+impl IndexMut<usize> for Leds {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.leds[index]
     }
 }
 
